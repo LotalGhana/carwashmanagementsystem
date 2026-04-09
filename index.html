@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OY Car Wash POS</title>
+
+<!-- ✅ CORRECT PWA SETUP -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#000000">
+<link rel="apple-touch-icon" href="icon.png">
+
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial;background:#0a0a0a;color:#fff}
+
+.app{display:grid;grid-template-columns:240px 1fr;height:100vh}
+
+.sidebar{background:#111;padding:15px;display:flex;flex-direction:column;gap:15px}
+.sidebar button{padding:16px;font-size:16px;border:none;border-radius:10px;background:#222;color:#fff;cursor:pointer}
+.sidebar button.active{background:#fff;color:#000;font-weight:bold}
+
+.main{padding:20px;overflow:auto}
+
+.topbar{display:grid;grid-template-columns:2fr 1fr 1fr 1fr;gap:15px;margin-bottom:15px}
+
+.card{background:#111;padding:20px;border-radius:14px}
+
+.grid-workers{display:grid;gap:15px;grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}
+
+.worker{background:#111;padding:20px;border-radius:14px}
+.worker.unpaid{border:2px solid red}
+
+.jobBtn{
+margin-top:10px;
+padding:14px;
+font-size:18px;
+background:#fff;
+color:#000;
+border:none;
+border-radius:10px;
+width:100%
+}
+
+input{
+width:100%;
+padding:12px;
+font-size:16px;
+border-radius:10px;
+border:none;
+margin-top:8px
+}
+
+.hidden{display:none}
+.bar{height:12px;background:#fff;margin:6px 0}
+
+@media print {
+body * {visibility:hidden}
+#printArea, #printArea * {visibility:visible}
+#printArea {position:absolute;top:0;left:0;width:100%;color:#000;background:#fff;padding:20px}
+}
+</style>
+</head>
+
+<body>
+
+<!-- LOGIN -->
+<div id="loginBox" class="card" style="max-width:320px;margin:100px auto">
+<h2 align="center">OY Car Wash</h2>
+<input id="u" placeholder="Username">
+<input id="p" type="password" placeholder="Password">
+<button onclick="login()" class="jobBtn">Login</button>
+</div>
+
+<!-- APP -->
+<div id="app" class="app hidden">
+
+<div class="sidebar">
+<button onclick="tab('dash',this)" class="active">📊 Dashboard</button>
+<button onclick="tab('workers',this)">👷 Workers</button>
+<button onclick="tab('reports',this)">📄 Reports</button>
+<button onclick="logout()">🚪 Logout</button>
+</div>
+
+<div class="main">
+
+<!-- DASHBOARD -->
+<div id="dash">
+<div class="topbar">
+<div class="card">
+<input id="scan" placeholder="Scan Ticket" onkeydown="scanTicket(event)">
+</div>
+<div class="card"><p id="cars"></p></div>
+<div class="card"><p id="revenue"></p></div>
+<div class="card"><p id="profit"></p></div>
+</div>
+
+<div class="card" align="center">
+<p id="paid"></p>
+<p id="unpaid"></p>
+</div>
+
+<div class="card">
+<h3>Revenue Chart</h3>
+<div id="chart"></div>
+</div>
+</div>
+
+<!-- WORKERS -->
+<div id="workers" class="hidden">
+<div class="card">
+<h3>Add Worker</h3>
+<input id="name" placeholder="Name">
+<input id="phone" placeholder="Phone">
+<input id="role" placeholder="Role">
+<input id="wid" placeholder="ID Number">
+<button onclick="addWorker()" class="jobBtn">Add Worker</button>
+</div>
+
+<div id="list" class="grid-workers"></div>
+</div>
+
+<!-- REPORTS -->
+<div id="reports" class="hidden">
+<div class="card">
+<button onclick="exportCSV()" class="jobBtn">Download CSV</button>
+<button onclick="printReport()" class="jobBtn">Print Report</button>
+<button onclick="clearData()" class="jobBtn">Reset</button>
+</div>
+</div>
+
+</div>
+</div>
+
+<div id="printArea"></div>
+
+<script>
+
+// ADMIN
+let admin={u:'alex',p:'0203'};
+
+// DATA
+let workers=JSON.parse(localStorage.getItem('w'))||[];
+let jobs=JSON.parse(localStorage.getItem('j'))||[];
+let ticket=jobs.length+1;
+
+// LOGIN
+function login(){
+let username=document.getElementById('u').value;
+let password=document.getElementById('p').value;
+
+if(username===admin.u && password===admin.p){
+document.getElementById('loginBox').classList.add('hidden');
+document.getElementById('app').classList.remove('hidden');
+render();
+}else alert('Wrong login');
+}
+
+function logout(){location.reload()}
+
+// TABS
+function tab(id,el){
+document.querySelectorAll('.main>div').forEach(d=>d.classList.add('hidden'));
+document.querySelectorAll('.sidebar button').forEach(b=>b.classList.remove('active'));
+document.getElementById(id).classList.remove('hidden');
+el.classList.add('active');
+}
+
+// ADD WORKER
+function addWorker(){
+let n=document.getElementById('name').value.trim();
+if(!n) return alert('Enter name');
+
+workers.push({
+name:n,
+phone:phone.value,
+role:role.value,
+id:wid.value
+});
+
+name.value='';phone.value='';role.value='';wid.value='';
+save();render();
+}
+
+// ADD JOB
+function addJob(i){
+let amt=parseFloat(prompt('Amount'));
+if(isNaN(amt)) return;
+
+jobs.push({
+worker:i,
+amount:amt,
+ws:amt,
+os:amt,
+ticket:'T'+ticket++,
+paid:false
+});
+
+save();render();
+}
+
+// SCAN
+function scanTicket(e){
+if(e.key==='Enter'){
+let code=document.getElementById('scan').value.trim();
+let job=jobs.find(j=>j.ticket===code);
+
+if(job){
+job.paid=true;
+alert('✅ Paid');
+}else alert('❌ Not found');
+
+scan.value='';
+save();render();
+}
+}
+
+// RENDER
+function render(){
+
+list.innerHTML='';
+chart.innerHTML='';
+
+workers.forEach((w,i)=>{
+let wjobs=jobs.filter(j=>j.worker===i);
+let total=wjobs.reduce((a,b)=>a+b.amount,0);
+let unpaid=wjobs.some(j=>!j.paid);
+
+list.innerHTML+=`
+<div class="worker ${unpaid?'unpaid':''}">
+<h3>${w.name}</h3>
+<p>${w.role||''}</p>
+<p>${w.phone||''}</p>
+<p><b>${total} GHS</b></p>
+<button class="jobBtn" onclick="addJob(${i})">➕ Add Job</button>
+</div>`;
+
+chart.innerHTML+=`<div>${w.name}</div><div class="bar" style="width:${Math.min(total,300)}px"></div>`;
+});
+
+cars.innerText='Cars: '+jobs.length;
+revenue.innerText='Revenue: '+jobs.reduce((a,b)=>a+b.amount,0)+' GHS';
+profit.innerText='Profit: '+jobs.reduce((a,b)=>a+b.os,0)+' GHS';
+paid.innerText='Paid: '+jobs.filter(j=>j.paid).length;
+unpaid.innerText='Unpaid: '+jobs.filter(j=>!j.paid).length;
+}
+
+// PRINT
+function printReport(){
+let html=`<h2>OY Car Wash Report</h2><table border="1" cellpadding="10">
+<tr><th>Worker</th><th>Amount</th><th>Ticket</th><th>Status</th></tr>`;
+jobs.forEach(j=>{
+let w=workers[j.worker];
+html+=`<tr><td>${w.name}</td><td>${j.amount}</td><td>${j.ticket}</td><td>${j.paid?'PAID':'UNPAID'}</td></tr>`;
+});
+html+=`</table><br><b>Total: ${jobs.reduce((a,b)=>a+b.amount,0)} GHS</b>`;
+printArea.innerHTML=html;
+window.print();
+}
+
+// SAVE
+function save(){
+localStorage.setItem('w',JSON.stringify(workers));
+localStorage.setItem('j',JSON.stringify(jobs));
+}
+
+// RESET
+function clearData(){
+if(confirm('Reset?')){
+localStorage.clear();
+location.reload();
+}
+}
+
+// EXPORT
+function exportCSV(){
+let csv='worker,amount,ticket,paid\n';
+jobs.forEach(j=>{
+csv+=`${workers[j.worker].name},${j.amount},${j.ticket},${j.paid}\n`;
+});
+let b=new Blob([csv]);
+let a=document.createElement('a');
+a.href=URL.createObjectURL(b);
+a.download='oycarwashreport.csv';
+a.click();
+}
+
+// ✅ SERVICE WORKER
+if ('serviceWorker' in navigator) {
+window.addEventListener('load', () => {
+navigator.serviceWorker.register('sw.js');
+});
+}
+
+</script>
+
+</body>
+</html>
