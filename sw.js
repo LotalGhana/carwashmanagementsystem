@@ -1,18 +1,14 @@
-const CACHE_NAME = "carwash-v2";
+const CACHE_NAME = 'oy-carwash-v1';
+const ASSETS = ['index.html', 'manifest.json', 'icon.png'];
 
-const urlsToCache = [
-  "index.html",
-  "manifest.json"
-];
-
-self.addEventListener("install", e => {
+self.addEventListener('install', (e) => {
   e.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(urlsToCache))
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS))
   );
 });
 
-self.addEventListener("fetch", e => {
+self.addEventListener('fetch', (e) => {
   e.respondWith(
-    caches.match(e.request).then(r => r || fetch(e.request))
+    caches.match(e.request).then((res) => res || fetch(e.request))
   );
 });
